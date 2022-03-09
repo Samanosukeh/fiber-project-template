@@ -2,11 +2,32 @@ package main
 
 import (
 	"fiber-project/blog"
+	"fiber-project/database"
 	"github.com/gofiber/fiber/v2"
+	log "github.com/sirupsen/logrus"
+
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/sqlite"
 )
 
-func HelloWord(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{"Hello": "World"})
+func setupRoutes(app *fiber.App) {
+	app.Get("/post", blog.GetPosts).Name("getPosts")
+	app.Get("/post/:id", blog.GetPost).Name("getPost")
+	app.Post("/post", blog.NewPost).Name("newPost")
+	//app.Put("/blog/:id", blog.Update)
+	app.Delete("/post/:id", blog.DeletePost)
+}
+
+func initDatabase() {
+	var err error
+	database.DBConn, err = gorm.Open("sqlite3", "blog.db")
+	if err != nil {
+		log.Infof("failed to connect database")
+	}
+	log.Infof("database connected")
+
+	database.DBConn.AutoMigrate(&blog.Post{})
+	log.Infof("database migrated")
 }
 
 func main() {
@@ -17,19 +38,10 @@ func main() {
 		},
 	)
 
-	// GET http://localhost:3000/john
-	app.Get("/:name?", func(c *fiber.Ctx) error {
-		if c.Params("name") != "" {
-			return c.SendString("Hello " + c.Params("name"))
-			// => Hello john
-		}
-		return c.SendString("Where is john?")
-	}).Name("home")
+	initDatabase()
+	defer database.DBConn.Close()
 
-	// create post route for test
-	app.Post("/", HelloWord)
-
-	app.Post("/blog/create", blog.CreateBlogItem)
+	setupRoutes(app)
 
 	app.Listen(":3000")
 }

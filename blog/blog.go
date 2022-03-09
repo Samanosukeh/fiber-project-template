@@ -1,51 +1,64 @@
 package blog
 
 import (
-	"encoding/json"
-	"fmt"
+	"fiber-project/database"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gosimple/slug"
-	log "github.com/sirupsen/logrus"
-	"io"
-	"io/ioutil"
+	"github.com/jinzhu/gorm"
 )
 
-type Payload struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
+type Post struct {
+	gorm.Model
+	Title       string `json:"title" required:"true"`
+	Description string `json:"description" required:"true"`
+	Slug        string `json:"slug"`
 }
 
 // CreateItem - Cria um novo post no blog
-func CreateItem(title, description string) {
-	log.Infof("Creating blog item...")
-	textSlugify := slug.Make(title)
-	log.Infof(title)
-	log.Infof(description)
-	log.Infof(textSlugify)
+//func CreatePost(title, description string) Post {
+//	db := database.DBConn
+//	textSlugify := slug.Make(title)
+//	post := Post{
+//		Title:       title,
+//		Description: description,
+//		Slug:        textSlugify,
+//	}
+//	db.Create(&post)
+//}
+
+func GetPosts(c *fiber.Ctx) error {
+	db := database.DBConn
+	var posts []Post
+	db.Find(&posts)
+	return c.JSON(posts)
 }
 
-func Blog(c *fiber.Ctx) {
-	c.JSON(fiber.Map{"message": "blog teste"})
+func GetPost(c *fiber.Ctx) error {
+	id := c.Params("id")
+	db := database.DBConn
+	var post Post
+	db.First(&post, id)
+	return c.JSON(post)
 }
 
-func CreateBlogItem(c *fiber.Ctx) error {
-	var payload Payload
-	jsonBytes, err := ioutil.ReadAll(c.Request) //.Body
-
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			fmt.Println(err)
-		}
-	}(c.Request.Body)
-
-	if err != nil {
-		fmt.Println(err)
+func NewPost(c *fiber.Ctx) error {
+	db := database.DBConn
+	post := new(Post)
+	if err := c.BodyParser(post); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(err)
 	}
 
-	_ = json.Unmarshal(jsonBytes, &payload)
+	post.Slug = slug.Make(post.Title)
 
-	CreateItem(payload.Title, payload.Description)
-
+	db.Create(&post)
 	return c.JSON(fiber.Map{"message": "created blog item"})
+}
+
+func DeletePost(c *fiber.Ctx) error {
+	id := c.Params("id")
+	db := database.DBConn
+	var post Post
+	db.First(&post, id)
+	db.Delete(&post)
+	return c.JSON(fiber.Map{"message": "deleted blog item"})
 }
